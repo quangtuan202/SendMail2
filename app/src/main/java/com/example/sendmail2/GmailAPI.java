@@ -1,6 +1,9 @@
 package com.example.sendmail2;
 
 import android.content.Context;
+import android.util.Log;
+
+import androidx.annotation.RequiresPermission;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,18 +12,23 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.security.GeneralSecurityException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.json.JSONObject;
 
 import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.auth.oauth2.TokenResponse;
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -30,6 +38,9 @@ import com.google.api.client.util.StringUtils;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.ListMessagesResponse;
 import com.google.api.services.gmail.model.Message;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 public class GmailAPI {
 
@@ -64,13 +75,6 @@ https://accounts.google.com/o/oauth2/token
 
 	private static String REFRESH_TOKEN="1//04DBM8TCw9uEWCgYIARAAGAQSNwF-L9IrONRZbIl3mMedO2h4a51CfWE0f6QS0ghRunr8JB1ayi95seY3vniDIr4sMinJJHBG_zE";
 
-//	public static void main(String[] args) throws IOException, GeneralSecurityException {
-//
-//		getGmailService();
-//
-//		getMailBody("Google");
-//
-//	}
 
 	public static void getMailBody(String searchString) throws IOException {
 
@@ -95,20 +99,45 @@ https://accounts.google.com/o/oauth2/token
 
 	}
 
+	public static String isToString(InputStream is) {
+		final int bufferSize = 1024;
+		final char[] buffer = new char[bufferSize];
+		final StringBuilder out = new StringBuilder();
+		Reader in = null;
+		try {
+			in = new InputStreamReader(is, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		for (; ; ) {
+			int rsz = 0;
+			try {
+				rsz = in.read(buffer, 0, buffer.length);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			if (rsz < 0)
+				break;
+			out.append(buffer, 0, rsz);
+		}
+		return out.toString();
+	}
+
 	public static Gmail getGmailService(Context context) throws IOException, GeneralSecurityException {
 
-//		InputStream in = new FileInputStream(filePath); // Read credentials.json
+		// Read credentials.json
 
 		InputStream in = context.getResources().openRawResource(R.raw.credentials);
+		Reader reader= new InputStreamReader(in);
 		GoogleClientSecrets clientSecrets = GoogleClientSecrets.load(JSON_FACTORY, new InputStreamReader(in));
 
 		// Credential builder
 
 		Credential authorize = new GoogleCredential.Builder().setTransport(GoogleNetHttpTransport.newTrustedTransport())
 				.setJsonFactory(JSON_FACTORY)
-				.setClientSecrets(clientSecrets.getDetails().getClientId().toString(),
-						clientSecrets.getDetails().getClientSecret().toString())
-				.build().setAccessToken(getAccessToken()).setRefreshToken(REFRESH_TOKEN);//Replace this
+				.setClientSecrets(clientSecrets.getDetails().getClientId(),
+						clientSecrets.getDetails().getClientSecret())
+				.build().setAccessToken(refreshAccessToken(context)).setRefreshToken(REFRESH_TOKEN);
 
 		// Create Gmail service
 		final NetHttpTransport HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
@@ -158,6 +187,26 @@ https://accounts.google.com/o/oauth2/token
 			ex.printStackTrace();
 		}
 		return null;
+	}
+
+	public static String refreshAccessToken(Context context) throws IOException {
+
+		InputStream in = context.getResources().openRawResource(R.raw.credentials);
+		Reader reader= new InputStreamReader(in);
+		JsonObject JsonObj = JsonParser.parseReader(reader).getAsJsonObject();
+		JsonObject webObj= JsonObj.get("web").getAsJsonObject();
+		String clientID= webObj.get("client_id").getAsString();
+		String clientSecret= webObj.get("client_secret").getAsString();
+		TokenResponse response = new GoogleRefreshTokenRequest(
+				new NetHttpTransport(),
+				new GsonFactory(),
+				REFRESH_TOKEN,
+				clientID,
+				clientSecret)
+				.execute();
+//		System.out.println("Access token: " + response.getAccessToken());
+
+		return response.getAccessToken();
 	}
 
 }

@@ -30,11 +30,6 @@ import com.google.api.services.gmail.model.Message;
 
 public class GmailOperations {
 
-//	public static void main(String[] args) throws IOException, GeneralSecurityException, MessagingException {
-//
-//		sendEmail();
-//
-//	}
 
 	public static void sendMessage(Gmail service, String userId, MimeMessage email)
 			throws MessagingException, IOException {
